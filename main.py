@@ -10,7 +10,7 @@ st.markdown('#### 売り上げ分析（得意先別)')
 #インスタンス化
 pytrends = TrendReq(hl='ja-JP', tz=-540) # timezone 時差 UTCより9時間（540分）進んでいる
 
-def shop_fukushima_all():
+def shop_fukushima():
     with st.form('設定', clear_on_submit=True):
         #福島県　全販売店
         shop_list = ['ニトリ', '東京インテリア', 'ケンポク', '丸ほん', 'ラボット'] #kw スペース区切り可
@@ -148,6 +148,95 @@ def maker():
     #plotly_chart plotlyを使ってグラグ描画　グラフの幅が列の幅
     st.plotly_chart(fig, use_container_width=True)
 
+def shop_fukushima_sales():
+    st.markdown('##### 検索傾向と売上の比較')
+    with st.form('設定', clear_on_submit=True):
+        #福島県　全販売店
+        shop_list = ['ケンポク', '丸ほん', 'ラボット'] #kw スペース区切り可
+
+        shop = st.selectbox(
+                '販売店を選択',
+                shop_list
+                )
+
+        # 集計する期間の設定
+        start_date = st.date_input(
+            "開始時期",
+            datetime.date(2023, 1, 1))
+
+        end_date = st.date_input(
+            "終了時期",
+            datetime.date.today())
+        
+        submitted = st.form_submit_button("データ収集")
+
+    #売上データ
+    # ***ファイルアップロード 今期***
+    uploaded_file = st.sidebar.file_uploader('今期', type='xlsx', key='now')
+    df_now = pd.DataFrame()
+    if uploaded_file:
+        df_now = pd.read_excel(
+        uploaded_file, sheet_name='受注委託移動在庫生産照会', \
+            usecols=[3, 15, 16]) #index　ナンバー不要　index_col=0
+        
+    else:
+        st.info('今期のファイルを選択してください。')
+
+    df_now['受注日2'] = df_now['受注日'].dt.strftime('%Y-%m-%d')
+
+    s_now = pd.Series()
+    if shop == 'ケンポク':
+        df_now2 = df_now[df_now['得意先名']=='（有）ケンポク家具']
+        s_now = df_now.groupby('受注日2')['金額'].sum()
+        st.write(s_now)
+        
+        
+
+
+
+
+
+
+
+    # start_date, end_date = "2023-01-01", "2023-02-28"
+    if submitted:
+        #集計
+        pytrends.build_payload([shop], cat=0, timeframe=f'{start_date} {end_date}', geo='JP-07', gprop='')
+        # category指定0　なし/
+        # jp-02 青森 jp-03 岩手 jp-04 宮城 jp-05秋田 jp-06 山形 jp-07 福島/g
+        # group フィルター images/youtube
+
+        #df化
+        df = pytrends.interest_over_time().drop('isPartial', axis=1).reset_index()
+        
+        df['date2'] = df['date'].dt.strftime('%Y-%m-%d')
+        st.write(df)
+
+        #可視化
+        #グラフを描くときの土台となるオブジェクト
+        fig = go.Figure()
+        #今期のグラフの追加
+        fig.add_trace(
+            go.Scatter(
+                x=df['date'],
+                y=df[shop],
+                #   mode = 'lines+markers+text', #値表示
+                #   text=df[col],
+                #   textposition="top center",
+                name=shop
+                )
+        )
+
+        #レイアウト設定     
+        fig.update_layout(
+            title='検索傾向と売上の比較 福島県販売店',
+            showlegend=True #凡例表示
+        )
+        #plotly_chart plotlyを使ってグラグ描画　グラフの幅が列の幅
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.stop() 
+
 
 
 
@@ -157,9 +246,9 @@ def main():
     # アプリケーション名と対応する関数のマッピング
     apps = {
         '-': None,
-        '販売店_福島': shop_fukushima_all,
-        'メーカー_全国': maker
-
+        '販売店_福島': shop_fukushima,
+        'メーカー_全国': maker,
+        '販売店_福島_売上比較': shop_fukushima_sales
   
     }
     selected_app_name = st.sidebar.selectbox(label='分析項目の選択',
